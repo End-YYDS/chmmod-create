@@ -34,7 +34,7 @@ fn main() {
         });
 
     create_new_lib(&module_name);
-    create_mod_toml(&module_name);
+    // create_mod_toml(&module_name);
     update_cargo_toml(&module_name);
     println!("Module '{}' has been successfully scaffolded!", module_name);
 }
