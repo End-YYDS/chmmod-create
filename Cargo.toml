@@ -1,0 +1,8 @@
+[package]
+name = "chmmod-create"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = "4.5.23"
+toml = "0.8.19"
