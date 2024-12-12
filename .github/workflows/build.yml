@@ -54,7 +54,7 @@ jobs:
         BIN_OUTPUT="target/${{ matrix.target }}/release/${PROJECT_NAME}${BIN_SUFFIX}"
         BIN_RELEASE="${PROJECT_NAME}-${{ matrix.name }}${BIN_SUFFIX}"
         BIN_RELEASE_VERSIONED="${PROJECT_NAME}-${{ github.ref_name }}-${{ matrix.name }}${BIN_SUFFIX}"
-        mv "${BIN_OUTPUT}" "./dist${BIN_RELEASE}" 
+        mv "${BIN_OUTPUT}" "./dist/${BIN_RELEASE}" 
       shell: bash
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
