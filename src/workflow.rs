@@ -194,7 +194,7 @@ ls -l dist/
             uses: Some("actions/upload-artifact@v4".to_string()),
             with: {
                 let mut with = HashMap::new();
-                with.insert("name".to_string(), format!("{}-${{ matrix.name }}-library",name));
+                with.insert("name".to_string(), format!(r#"{}-${{{{ matrix.name }}}}-library"#,name));
                 with.insert("path".to_string(), "dist/".to_string());
                 with.insert("retention-days".to_string(), "30".to_string());
                 Some(with)
