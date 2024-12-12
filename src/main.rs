@@ -1,9 +1,10 @@
+mod workflow;
 use clap::{Arg, Command};
 use std::fs::{self, OpenOptions};
 use std::io::Read;
 use std::process::Command as ProcessCommand;
 use toml::{map::Map, Value};
-
+use workflow::create_build_workflow;
 fn main() {
     let matches = Command::new("CHM Plugin Scaffold")
         .version("0.1.0")
@@ -17,7 +18,6 @@ fn main() {
                 .help("Name of the module"),
         )
         .get_matches();
-
     let module_name = matches
         .get_one::<String>("name")
         .cloned()
@@ -33,10 +33,22 @@ fn main() {
             }
         });
 
-    create_new_lib(&module_name);
-    // create_mod_toml(&module_name);
-    update_cargo_toml(&module_name);
+    if let Err(e) = scaffold_module(&module_name) {
+        eprintln!(
+            "Error: Failed to scaffold the module '{}'. Reason: {}",
+            module_name, e
+        );
+        std::process::exit(1);
+    }
     println!("Module '{}' has been successfully scaffolded!", module_name);
+}
+fn scaffold_module(module_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    create_new_lib(module_name);
+    // create_mod_toml(module_name).map_err(|e| format!("Failed to create mod.toml. {}", e))?;
+    create_build_workflow(module_name)
+        .map_err(|e| format!("Failed to create build workflow. {}", e))?;
+    update_cargo_toml(module_name);
+    Ok(())
 }
 fn create_new_lib(module_name: &str) {
     let status = ProcessCommand::new("cargo")
@@ -53,6 +65,7 @@ fn create_new_lib(module_name: &str) {
 
     println!("Created new library '{}'", module_name);
 }
+#[allow(dead_code)]
 fn create_mod_toml(module_name: &str) {
     let mod_content = format!(
         r#"[module]
