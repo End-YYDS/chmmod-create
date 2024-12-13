@@ -1,3 +1,7 @@
+//! # 工作流程模組
+//! 
+//! 這個模組負責生成 GitHub Actions 工作流程配置文件。
+
 use serde::{Deserialize, Serialize};
 use serde_yml::to_string;
 use std::{collections::HashMap, fs::create_dir_all, path::Path};
@@ -69,6 +73,15 @@ struct Step {
     shell: Option<String>,
 }
 
+/// 建立 GitHub Actions 工作流程配置
+/// 
+/// # Arguments
+/// 
+/// * `name` - 專案名稱
+/// 
+/// # Returns
+/// 
+/// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
 pub fn create_build_workflow(name: &str) -> Result<(), Box<dyn std::error::Error>> {
     let project_name = name.to_string();
     let pwf = Path::new(name);
