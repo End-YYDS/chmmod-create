@@ -1,16 +1,16 @@
 //! # CHM Plugin Scaffold
-//! 
+//!
 //! 這是一個用於快速建立 CHM 插件模組的命令列工具。
-//! 
+//!
 //! ## 功能
-//! 
+//!
 //! - 自動建立新的 Rust 函式庫專案
 //! - 配置 Cargo.toml 以支援動態函式庫編譯
 //! - 自動整合 plugin_core 依賴
 //! - 生成 GitHub Actions 工作流程
-//! 
+//!
 //! ## 使用方式
-//! 
+//!
 //! ```bash
 //! chmmod-create --name my_module
 //! ```
@@ -20,11 +20,12 @@ use clap::{Arg, Command};
 use std::fs::{self, OpenOptions};
 use std::io::Read;
 use std::process::Command as ProcessCommand;
-use toml::{map::Map, Value};
+use toml_edit::{value, Array, DocumentMut, Item};
 use workflow::create_build_workflow;
 
 /// 主程式入口點
 fn main() {
+    dotenv::dotenv().ok();
     let matches = Command::new("CHM Plugin Scaffold")
         .version("0.1.0")
         .author("CHM")
@@ -63,27 +64,27 @@ fn main() {
 }
 
 /// 建立新的模組腳手架
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `module_name` - 模組名稱
-/// 
+///
 /// # Returns
-/// 
+///
 /// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
 fn scaffold_module(module_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     create_new_lib(module_name);
     // create_mod_toml(module_name).map_err(|e| format!("Failed to create mod.toml. {}", e))?;
     create_build_workflow(module_name)
         .map_err(|e| format!("Failed to create build workflow. {}", e))?;
-    update_cargo_toml(module_name);
+    update_cargo_toml(module_name)?;
     Ok(())
 }
 
 /// 使用 cargo new 建立新的函式庫
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `module_name` - 模組名稱
 fn create_new_lib(module_name: &str) {
     let status = ProcessCommand::new("cargo")
@@ -118,11 +119,11 @@ description = "This is the {} module"
 }
 
 /// 更新 Cargo.toml 配置
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `module_name` - 模組名稱
-fn update_cargo_toml(module_name: &str) {
+fn update_cargo_toml(module_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     let cargo_toml_path = format!("{}/Cargo.toml", module_name);
 
     let mut cargo_content = String::new();
@@ -135,51 +136,31 @@ fn update_cargo_toml(module_name: &str) {
             .expect("Failed to read Cargo.toml");
     }
 
-    let mut cargo_toml: Value = cargo_content.parse().expect("Failed to parse Cargo.toml");
+    let mut doc = cargo_content.parse::<DocumentMut>()?;
 
-    if let Some(dependencies) = cargo_toml.get_mut("dependencies") {
-        let dependencies = dependencies.as_table_mut().unwrap();
-        dependencies.insert(
-            "plugin_core".to_string(),
-            Value::Table({
-                let mut plugin_core = Map::new();
-                plugin_core.insert(
-                    "git".to_string(),
-                    Value::String("https://github.com/End-YYDS/plugin_core".to_string()),
-                );
-                plugin_core.insert(
-                    "features".to_string(),
-                    Value::Array(vec![Value::String("plugin_macro".to_string())]),
-                );
-                plugin_core
-            }),
-        );
-    }
-
-    if let Some(lib) = cargo_toml.get_mut("lib") {
-        let lib = lib.as_table_mut().unwrap();
-        lib.insert(
-            "crate-type".to_string(),
-            Value::Array(vec![Value::String("dylib".to_string())]),
-        );
-    } else {
-        let lib_section = Value::Table({
-            let mut lib = Map::new();
-            lib.insert(
-                "crate-type".to_string(),
-                Value::Array(vec![Value::String("dylib".to_string())]),
-            );
-            lib
+    if let Some(dependencies) = doc.get_mut("dependencies") {
+        let plugin_lib = Item::Table({
+            let mut table = toml_edit::Table::new();
+            let repo_url = std::env::var("GIT_REPO").expect("GIT_REPO is not set");
+            table["git"] = value(repo_url);
+            // table["features"] = value(vec!["plugin_macro"]);
+            table
         });
-        cargo_toml
+        dependencies
             .as_table_mut()
             .unwrap()
-            .insert("lib".to_string(), lib_section);
+            .insert("plugin_lib", plugin_lib);
     }
 
-    let updated_content =
-        toml::to_string(&cargo_toml).expect("Failed to serialize updated Cargo.toml");
-    fs::write(&cargo_toml_path, updated_content).expect("Failed to write updated Cargo.toml");
-
+    let lib_section = doc
+        .entry("lib")
+        .or_insert(Item::Table(toml_edit::Table::new()));
+    if let Some(lib_table) = lib_section.as_table_mut() {
+        let mut crate_types = Array::new();
+        crate_types.push("dylib");
+        lib_table["crate-type"] = value(crate_types);
+    }
+    fs::write(&cargo_toml_path, doc.to_string())?;
     println!("Updated Cargo.toml for module '{}'", module_name);
+    Ok(())
 }
