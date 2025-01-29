@@ -252,7 +252,8 @@ fn update_cargo_toml(module_name: &str) -> Result<(), Box<dyn std::error::Error>
     if let Some(dependencies) = doc.get_mut("dependencies") {
         let plugin_lib = Item::Table({
             let mut table = toml_edit::Table::new();
-            let repo_url = std::env::var("GIT_REPO").expect("GIT_REPO is not set");
+            let repo_url = std::env::var("GIT_REPO")
+                .unwrap_or_else(|_| "https://github.com/End-YYDS/plugin_lib".to_string());
             table["git"] = value(repo_url);
             // table["features"] = value(vec!["plugin_macro"]);
             table
