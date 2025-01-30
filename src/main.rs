@@ -25,7 +25,7 @@ use std::path::Path;
 use std::process::Command as ProcessCommand;
 use toml_edit::{value, Array, DocumentMut, Item};
 use workflow::create_build_workflow;
-const EXECUTE_FILE: &str = "chm_cli.sh";
+const EXECUTE_FILE: &str = "chm_cli";
 const PLUGIN_FRONTEND_DIR: &str = "src";
 /// 主程式入口點
 #[tokio::main]
