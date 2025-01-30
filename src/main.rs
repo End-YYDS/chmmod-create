@@ -6,7 +6,8 @@
 //!
 //! - 自動建立新的 Rust 函式庫專案
 //! - 配置 Cargo.toml 以支援動態函式庫編譯
-//! - 自動整合 plugin_core 依賴
+//! - 自動整合 plugin_lib 依賴
+//! - 自動生成預設插件代碼
 //! - 生成 GitHub Actions 工作流程
 //!
 //! ## 使用方式
@@ -17,14 +18,18 @@
 
 mod workflow;
 use clap::{Arg, Command};
-use std::fs::{self, OpenOptions};
-use std::io::Read;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::process::Command as ProcessCommand;
 use toml_edit::{value, Array, DocumentMut, Item};
 use workflow::create_build_workflow;
-
+const EXECUTE_FILE: &str = "chm_cli.sh";
+const PLUGIN_FRONTEND_DIR: &str = "src";
 /// 主程式入口點
-fn main() {
+#[tokio::main]
+async fn main() {
     dotenv::dotenv().ok();
     let matches = Command::new("CHM Plugin Scaffold")
         .version("0.1.0")
@@ -57,6 +62,13 @@ fn main() {
                 .long("scope")
                 .action(clap::ArgAction::Set)
                 .help("Plugin scope"),
+        )
+        .arg(
+            Arg::new("frontend")
+                .short('f')
+                .long("frontend")
+                .action(clap::ArgAction::SetTrue)
+                .help("Whether to include frontend pages"),
         )
         .get_matches();
     let module_name = matches
@@ -129,8 +141,17 @@ fn main() {
                 }
             }
         });
+    let include_frontend = matches.get_flag("frontend");
 
-    if let Err(e) = scaffold_module(&module_name, &version, &description, &scope) {
+    if let Err(e) = scaffold_module(
+        &module_name,
+        &version,
+        &description,
+        &scope,
+        include_frontend,
+    )
+    .await
+    {
         eprintln!(
             "Error: Failed to scaffold the module '{}'. Reason: {}",
             module_name, e
@@ -138,6 +159,9 @@ fn main() {
         std::process::exit(1);
     }
     println!("Module '{}' has been successfully scaffolded!", module_name);
+    if include_frontend {
+        println!("Frontend pages have been included in the scaffold.");
+    }
 }
 
 /// 建立新的模組腳手架
@@ -148,20 +172,27 @@ fn main() {
 /// * `version` - 模組版本
 /// * `description` - 模組描述
 /// * `scope` - 模組作用域
+/// * `need_frontend` - 是否需要前端頁面
 ///
 /// # Returns
 ///
 /// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
-fn scaffold_module(
+async fn scaffold_module(
     module_name: &str,
     version: &str,
     description: &str,
     scope: &str,
+    need_frontend: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     create_new_lib(module_name, version, description, scope)?;
     create_build_workflow(module_name)
         .map_err(|e| format!("Failed to create build workflow. {}", e))?;
     update_cargo_toml(module_name)?;
+    create_executable_script(module_name)?;
+    create_gitignore(module_name)?;
+    if need_frontend {
+        create_frontend_pages(module_name).await?;
+    }
     Ok(())
 }
 
@@ -173,6 +204,10 @@ fn scaffold_module(
 /// * `version` - 模組版本
 /// * `description` - 模組描述
 /// * `scope` - 模組作用域
+///
+/// # Returns
+/// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
+///
 fn create_new_lib(
     module_name: &str,
     version: &str,
@@ -197,6 +232,7 @@ fn create_new_lib(
 use plugin_lib::{{declare_plugin, register_plugin}};
 
 #[derive(Debug)]
+#[allow(non_camel_case_types)]
 struct {plugin_name};
 
 impl {plugin_name} {{
@@ -234,6 +270,10 @@ register_plugin!({plugin_name});"#
 /// # Arguments
 ///
 /// * `module_name` - 模組名稱
+///
+/// # Returns
+/// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
+///
 fn update_cargo_toml(module_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     let cargo_toml_path = format!("{}/Cargo.toml", module_name);
 
@@ -274,5 +314,133 @@ fn update_cargo_toml(module_name: &str) -> Result<(), Box<dyn std::error::Error>
     }
     fs::write(&cargo_toml_path, doc.to_string())?;
     println!("Updated Cargo.toml for module '{}'", module_name);
+    Ok(())
+}
+/// 創建可執行腳本
+/// # Arguments
+/// * `module_name` - 模組名稱
+///
+/// # Returns
+/// * `std::io::Result<()>` - 成功返回 Ok(()), 失敗返回錯誤
+///
+fn create_executable_script(module_name: &str) -> std::io::Result<()> {
+    let execute_file = format!(
+        "{}/{}",
+        module_name,
+        std::env::var("EXECUTE_FILE").unwrap_or(EXECUTE_FILE.to_string())
+    );
+    let path = Path::new(&execute_file);
+    let content = include_str!("../chm_cli.sh");
+    let mut file = File::create(path)?;
+    file.write_all(content.as_bytes())?;
+    let mut perms = file.metadata()?.permissions();
+    perms.set_mode(0o755);
+    file.set_permissions(perms)?;
+    Ok(())
+}
+/// 創建 .gitignore 文件
+/// # Arguments
+/// * `module_name` - 模組名稱
+///
+/// # Returns
+/// * `std::io::Result<()>` - 成功返回 Ok(()), 失敗返回錯誤
+///
+fn create_gitignore(module_name: &str) -> std::io::Result<()> {
+    let gitignore_file = format!("{}/.gitignore", module_name);
+    let path = Path::new(&gitignore_file);
+    let content = r#"target/"#;
+    let mut file = File::create(path)?;
+    file.write_all(content.as_bytes())?;
+    Ok(())
+}
+/// 創建前端頁面
+/// # Arguments
+/// * `module_name` - 模組名稱
+///
+/// # Returns
+/// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
+///
+async fn create_frontend_pages(module_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let frontend_dir = format!(
+        "{}/{}",
+        module_name,
+        std::env::var("PLUGIN_FRONTEND_DIR").unwrap_or(PLUGIN_FRONTEND_DIR.to_string())
+    );
+    let path = Path::new(&frontend_dir);
+    let owner = std::env::var("OWNER").unwrap_or("End-YYDS".to_string());
+    let repo = std::env::var("REPO").unwrap_or("React_Project_init".to_string());
+    let branch = std::env::var("BRANCH").unwrap_or("front-framework".to_string());
+    download_and_extract(&owner, &repo, &branch, path).await?;
+    Ok(())
+}
+/// 下載並解壓縮文件
+/// # Arguments
+/// * `owner` - GitHub 帳號
+/// * `repo` - GitHub 倉庫名稱
+/// * `branch` - 分支名稱
+/// * `download_path` - 下載路徑
+///
+/// # Returns
+/// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
+///
+async fn download_and_extract(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+    download_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // 確保下載目錄存在
+    fs::create_dir_all(download_path)?;
+
+    // 構建下載 URL
+    let url = format!(
+        "https://github.com/{}/{}/archive/refs/heads/{}.zip",
+        owner, repo, branch
+    );
+    println!("Downloading from: {}", url);
+
+    // 下載檔案
+    let response = reqwest::get(&url).await?;
+    let bytes = response.bytes().await?;
+
+    // 設定 zip 檔案路徑
+    let zip_path = download_path.join(format!("{}_{}.zip", repo, branch));
+    fs::write(&zip_path, bytes)?;
+    println!("Downloaded zip to: {}", zip_path.display());
+
+    // 讀取 zip 檔案
+    let zip_file = fs::File::open(&zip_path)?;
+    let mut archive = zip::ZipArchive::new(zip_file)?;
+
+    // 解壓縮
+    let extract_path = download_path.to_path_buf();
+    println!("Extracting to: {}", extract_path.display());
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let file_path = match file.enclosed_name() {
+            Some(path) => path.to_owned(),
+            None => continue,
+        };
+
+        let out_path = extract_path.join(file_path);
+
+        if file.name().ends_with('/') {
+            fs::create_dir_all(&out_path)?;
+        } else {
+            if let Some(p) = out_path.parent() {
+                fs::create_dir_all(p)?;
+            }
+            let mut outfile = fs::File::create(&out_path)?;
+            std::io::copy(&mut file, &mut outfile)?;
+        }
+    }
+    let extra_file =
+        std::env::var("EXTRA_FILE").unwrap_or("React_Project_init-front-framework".to_string());
+    let from_file = format!("{}/{}", extract_path.display(), extra_file);
+    let to_file = format!("{}/frontend", extract_path.display());
+    fs::remove_file(zip_path)?;
+    fs::rename(from_file, to_file)?;
+    println!("Successfully extracted files!");
     Ok(())
 }
