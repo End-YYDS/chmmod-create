@@ -249,7 +249,7 @@ impl {plugin_name} {{
 declare_plugin!(
     {plugin_name},
     meta: {{"{plugin_name}","{version}", "{description}","/{scope}",""}},
-    "",
+    "{plugin_name}.js",
     functions:{{
         "/test" => {{
             method: actix_web::web::get(),
