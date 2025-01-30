@@ -218,6 +218,7 @@ fn create_new_lib(
     let status = ProcessCommand::new("cargo")
         .arg("new")
         .arg("--lib")
+        .arg("-q")
         .arg(module_name)
         .status()
         .expect("Failed to execute cargo new");
