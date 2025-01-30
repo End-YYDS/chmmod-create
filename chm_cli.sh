@@ -4,11 +4,13 @@ SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 PROGRAM_NAME="$(basename $SCRIPT_DIR)"
 FRONTEND_DIR="$SCRIPT_DIR/src/frontend"
 
+cd $SCRIPT_DIR
 show_usage() {
     echo "Usage: $0 [command] [args...]"
     echo "Commands:"
     echo "  build                - Build the Rust project in release mode and copy libraries"
     echo "  run [args...]        - Run the Rust project with optional arguments"
+    echo "  web-install          - Install frontend dependencies"
     echo "  web-dev [args...]    - Run yarn dev with optional arguments"
     echo "  web-build            - Run yarn build"
     echo "  help                 - Show this help message"
