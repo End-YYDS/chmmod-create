@@ -249,7 +249,7 @@ impl {plugin_name} {{
 declare_plugin!(
     {plugin_name},
     meta: {{"{plugin_name}","{version}", "{description}","/{scope}",""}},
-    "{plugin_name}.js",
+    "{module_name}.js",
     functions:{{
         "/test" => {{
             method: actix_web::web::get(),
@@ -349,7 +349,35 @@ fn create_executable_script(module_name: &str) -> std::io::Result<()> {
 fn create_gitignore(module_name: &str) -> std::io::Result<()> {
     let gitignore_file = format!("{}/.gitignore", module_name);
     let path = Path::new(&gitignore_file);
-    let content = r#"target/"#;
+    let content = r#"target/
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+node_modules
+dist
+dist-ssr
+*.local
+!.vscode/*
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?"#;
+    let mut file = File::create(path)?;
+    file.write_all(content.as_bytes())?;
+    Ok(())
+}
+fn create_env(module_name: &str) -> std::io::Result<()> {
+    let gitignore_file = format!("{}/src/frontend/.env", module_name);
+    let path = Path::new(&gitignore_file);
+
+    let content = format!("VITE_LIB_NAME={}", module_name);
     let mut file = File::create(path)?;
     file.write_all(content.as_bytes())?;
     Ok(())
@@ -371,7 +399,22 @@ async fn create_frontend_pages(module_name: &str) -> Result<(), Box<dyn std::err
     let owner = std::env::var("OWNER").unwrap_or("End-YYDS".to_string());
     let repo = std::env::var("REPO").unwrap_or("React_Project_init".to_string());
     let branch = std::env::var("BRANCH").unwrap_or("front-framework".to_string());
+    println!("Downloading frontend pages from GitHub...");
     download_and_extract(&owner, &repo, &branch, path).await?;
+    println!("Created frontend pages for '{}'", module_name);
+    println!("Create env file for '{}'", module_name);
+    create_env(module_name)?;
+    println!("Updated package.json for '{}'", module_name);
+    let package_json = format!("{}/frontend/package.json", frontend_dir);
+    let content = fs::read_to_string(&package_json)?;
+    let mut json_data: serde_json::Value = serde_json::from_str(&content)?;
+    if let Some(name) = json_data.get_mut("name") {
+        *name = serde_json::Value::String(String::from(module_name));
+    } else {
+        println!("Field 'name' not found in package.json");
+    }
+    let updated_content = serde_json::to_string_pretty(&json_data)?;
+    fs::write(package_json, updated_content)?;
     Ok(())
 }
 /// 下載並解壓縮文件

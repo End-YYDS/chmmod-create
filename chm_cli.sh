@@ -3,6 +3,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 PROGRAM_NAME="$(basename $SCRIPT_DIR)"
 FRONTEND_DIR="$SCRIPT_DIR/src/frontend"
+export LIB_NAME="$PROGRAM_NAME"
 
 cd $SCRIPT_DIR
 show_usage() {
@@ -16,10 +17,14 @@ show_usage() {
     echo "  help                 - Show this help message"
 }
 
-# 建置函數
 build_release() {
+    cd $FRONTEND_DIR
+        yarn build
     cd $SCRIPT_DIR
     cargo build --release
+    if [ -d "dist" ]; then
+        rm -rf "dist"
+    fi
     mkdir -p "dist"
     if [[ "$OSTYPE" == "darwin"* ]]; then
         LIB_EXT="dylib"
@@ -30,6 +35,13 @@ build_release() {
         exit 1
     fi
     find "target/release" -name "lib${PROGRAM_NAME}.*${LIB_EXT}" -exec cp {} "dist/" \;
+    cp -r "src/frontend/dist/" "dist/"
+    if [ -d "output" ]; then
+        rm -rf "output"
+    fi
+    mkdir "output"
+    cd "dist"
+    zip -r "../output/$PROGRAM_NAME.zip" .
 }
 
 get_extra_args() {
