@@ -196,7 +196,7 @@ async fn scaffold_module(
     // create_executable_script(module_name)?;
     create_gitignore(module_name)?;
     if need_frontend {
-        create_frontend_pages(module_name).await?;
+        create_frontend_pages(module_name, version).await?;
     }
     Ok(())
 }
@@ -407,11 +407,15 @@ fn create_env(module_name: &str) -> std::io::Result<()> {
 /// 創建前端頁面
 /// # Arguments
 /// * `module_name` - 模組名稱
+/// * `module_version` - 模組版本
 ///
 /// # Returns
 /// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
 ///
-async fn create_frontend_pages(module_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn create_frontend_pages(
+    module_name: &str,
+    module_version: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let frontend_dir = format!(
         "{}/{}",
         module_name,
@@ -434,6 +438,11 @@ async fn create_frontend_pages(module_name: &str) -> Result<(), Box<dyn std::err
         *name = serde_json::Value::String(String::from(module_name));
     } else {
         println!("Field 'name' not found in package.json");
+    }
+    if let Some(version) = json_data.get_mut("version") {
+        *version = serde_json::Value::String(String::from(module_version));
+    } else {
+        println!("Field 'version' not found in package.json");
     }
     let updated_content = serde_json::to_string_pretty(&json_data)?;
     fs::write(package_json, updated_content)?;
