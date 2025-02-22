@@ -39,9 +39,16 @@ example/
     |---- workflows/
         |---- build.yml # Github Actions 工作流程配置
 |---- src/
+    |---- frontend #前端代碼
     |---- lib.rs #模組主程式碼
 |---- Cargo.toml #專案配置文件
 ```
+## 專案執行方式
+### 使用專門提供的工具`chmmod-cli`來執行或其他操作
+```bash
+chmmod-cli -h
+```
+### 進入各個目錄下去執行各種指令：`yarn`、`cargo`
 ## 自動化建置
 專案包含 GitHub Actions 工作流程，當推送到 main 分支時會自動觸發建置：
 - 支援多平台交叉編譯

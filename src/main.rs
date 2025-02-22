@@ -15,17 +15,22 @@
 //! ```bash
 //! chmmod-create --name my_module
 //! ```
+//! ## 幫助
+//! ```bash
+//! chmmod-create --help
+//! ```
 
 mod workflow;
 use clap::{Arg, Command};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
-use std::os::unix::fs::PermissionsExt;
+// #[cfg(target_os = "linux")]
+// use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Command as ProcessCommand;
 use toml_edit::{value, Array, DocumentMut, Item};
 use workflow::create_build_workflow;
-const EXECUTE_FILE: &str = "chm_cli";
+// const EXECUTE_FILE: &str = "chm_cli";
 const PLUGIN_FRONTEND_DIR: &str = "src";
 /// 主程式入口點
 #[tokio::main]
@@ -188,7 +193,7 @@ async fn scaffold_module(
     create_build_workflow(module_name)
         .map_err(|e| format!("Failed to create build workflow. {}", e))?;
     update_cargo_toml(module_name)?;
-    create_executable_script(module_name)?;
+    // create_executable_script(module_name)?;
     create_gitignore(module_name)?;
     if need_frontend {
         create_frontend_pages(module_name).await?;
@@ -324,21 +329,31 @@ fn update_cargo_toml(module_name: &str) -> Result<(), Box<dyn std::error::Error>
 /// # Returns
 /// * `std::io::Result<()>` - 成功返回 Ok(()), 失敗返回錯誤
 ///
-fn create_executable_script(module_name: &str) -> std::io::Result<()> {
-    let execute_file = format!(
-        "{}/{}",
-        module_name,
-        std::env::var("EXECUTE_FILE").unwrap_or(EXECUTE_FILE.to_string())
-    );
-    let path = Path::new(&execute_file);
-    let content = include_str!("../chm_cli.sh");
-    let mut file = File::create(path)?;
-    file.write_all(content.as_bytes())?;
-    let mut perms = file.metadata()?.permissions();
-    perms.set_mode(0o755);
-    file.set_permissions(perms)?;
-    Ok(())
-}
+// fn create_executable_script(module_name: &str) -> std::io::Result<()> {
+//     let execute_file = format!(
+//         "{}/{}",
+//         module_name,
+//         std::env::var("EXECUTE_FILE").unwrap_or(EXECUTE_FILE.to_string())
+//     );
+//     let path = Path::new(&execute_file);
+//     #[cfg(target_os = "linux")]
+//     {
+//         let content = include_str!("../chm_cli.sh");
+//         let mut file = File::create(path)?;
+//         file.write_all(content.as_bytes())?;
+//         let mut perms = file.metadata()?.permissions();
+//         perms.set_mode(0o755);
+//         file.set_permissions(perms)?;
+//     }
+//     #[cfg(target_os = "windows")]
+//     {
+//         let content = include_str!("../chm_cli.bat");
+//         let mut file = File::create(path)?;
+//         file.write_all(content.as_bytes())?;
+//     }
+//     dbg!(path);
+//     Ok(())
+// }
 /// 創建 .gitignore 文件
 /// # Arguments
 /// * `module_name` - 模組名稱
@@ -373,6 +388,13 @@ dist-ssr
     file.write_all(content.as_bytes())?;
     Ok(())
 }
+
+/// 創建 .env 文件
+/// # Arguments
+/// * `module_name` - 模組名稱
+/// # Returns
+/// * `std::io::Result<()>` - 成功返回 Ok(()), 失敗返回錯誤
+///
 fn create_env(module_name: &str) -> std::io::Result<()> {
     let gitignore_file = format!("{}/src/frontend/.env", module_name);
     let path = Path::new(&gitignore_file);
@@ -433,33 +455,21 @@ async fn download_and_extract(
     branch: &str,
     download_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // 確保下載目錄存在
     fs::create_dir_all(download_path)?;
-
-    // 構建下載 URL
     let url = format!(
         "https://github.com/{}/{}/archive/refs/heads/{}.zip",
         owner, repo, branch
     );
     println!("Downloading from: {}", url);
-
-    // 下載檔案
     let response = reqwest::get(&url).await?;
     let bytes = response.bytes().await?;
-
-    // 設定 zip 檔案路徑
     let zip_path = download_path.join(format!("{}_{}.zip", repo, branch));
     fs::write(&zip_path, bytes)?;
     println!("Downloaded zip to: {}", zip_path.display());
-
-    // 讀取 zip 檔案
     let zip_file = fs::File::open(&zip_path)?;
     let mut archive = zip::ZipArchive::new(zip_file)?;
-
-    // 解壓縮
     let extract_path = download_path.to_path_buf();
     println!("Extracting to: {}", extract_path.display());
-
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         let file_path = match file.enclosed_name() {
