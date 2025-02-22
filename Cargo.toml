@@ -19,7 +19,7 @@ name = "chmmod-cli"
 path = "src/bin/chmmod_cli.rs"
 
 [dependencies]
-clap = { version = "4.5.23", features = ["derive"] }
+clap = { version = "4.5.23", features = ["derive", "cargo"] }
 dotenv = "0.15.0"
 reqwest = "0.12.12"
 serde = { version = "1.0.216", features = ["derive"] }

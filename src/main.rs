@@ -21,7 +21,7 @@
 //! ```
 
 mod workflow;
-use clap::{Arg, Command};
+use clap::{crate_authors, crate_version, Arg, Command};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 // #[cfg(target_os = "linux")]
@@ -37,8 +37,8 @@ const PLUGIN_FRONTEND_DIR: &str = "src";
 async fn main() {
     dotenv::dotenv().ok();
     let matches = Command::new("CHM Plugin Scaffold")
-        .version("0.1.0")
-        .author("CHM")
+        .version(crate_version!())
+        .author(crate_authors!())
         .about("Generates a new CHM plugin module")
         .arg(
             Arg::new("name")
