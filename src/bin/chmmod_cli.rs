@@ -187,10 +187,19 @@ fn run_project(script_dir: &Path, extra_args: &[String]) -> io::Result<ExitStatu
 /// dir: 當前目錄
 /// 返回值: io::Result<ExitStatus>
 fn run_command(cmd_name: &str, args: &[&str], dir: &Path) -> io::Result<ExitStatus> {
-    let status = Command::new(cmd_name)
-        .args(args)
-        .current_dir(dir)
-        .status()?;
+    let shell_cmd = format!("{} {}", cmd_name, args.join(" "));
+    let status = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .arg("/C")
+            .arg(&shell_cmd)
+            .current_dir(dir)
+            .status()?
+    } else {
+        Command::new(cmd_name)
+            .args(args)
+            .current_dir(dir)
+            .status()?
+    };
     if !status.success() {
         eprintln!("Command {} failed with status: {:?}", cmd_name, status);
         std::process::exit(1);
