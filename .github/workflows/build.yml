@@ -52,9 +52,17 @@ jobs:
           BIN_SUFFIX=".exe"
         fi
         for BINARY in $(ls target/${{ matrix.target }}/release/); do
-          if [[ "$BINARY" != *"lib"* && "$BINARY" != *"dSYM"* ]]; then
-            RELEASE_BINARY="${BINARY}-${{ matrix.name }}${BIN_SUFFIX}"
-            mv "target/${{ matrix.target }}/release/$BINARY" "./dist/$RELEASE_BINARY"
+          FILE_PATH="target/${{ matrix.target }}/release/$BINARY"
+          if [[ "${{ matrix.runner }}" == "windows-latest" ]]; then
+            if [[ "$BINARY" == *"$BIN_SUFFIX" ]]; then
+              RELEASE_BINARY="${BINARY%.exe}-${{ matrix.name }}$BIN_SUFFIX"
+              mv "$FILE_PATH" "./dist/$RELEASE_BINARY"
+            fi
+          else
+            if [[ -f "$FILE_PATH" && -x "$FILE_PATH" ]]; then
+              RELEASE_BINARY="${BINARY}-${{ matrix.name }}"
+              mv "$FILE_PATH" "./dist/$RELEASE_BINARY"
+            fi
           fi
         done
       shell: bash
