@@ -1,8 +1,9 @@
 use clap::{Parser, Subcommand};
+use sha2::{Digest, Sha256};
 use std::{
-    env::{self},
+    env::{self, temp_dir},
     fs::{self, File},
-    io::{self, Read, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -117,16 +118,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// program_name: 程序名稱
 /// 返回值: io::Result<()>
 fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> io::Result<()> {
-    // 前端管理工具
-    let front_packer = env::var("FRONT_PACKER").unwrap_or_else(|_| "yarn".to_string());
-    // 編譯前端
-    run_command(&front_packer, &["build"], frontend_dir)?;
-    run_command("cargo", &["build", "--release"], script_src)?;
     let dist_dir = script_src.join("dist");
     if dist_dir.exists() {
         fs::remove_dir_all(&dist_dir)?;
     }
     fs::create_dir_all(&dist_dir)?;
+    let mut check_sum = String::new();
+    if frontend_dir.exists() {
+        let frontend_dist = frontend_dir.join("dist");
+        let check_sum_file = frontend_dist
+            .join("assets")
+            .join(format!("{}.js", program_name));
+        let packer_dist = dist_dir.join("frontend");
+        let front_packer = env::var("FRONT_PACKER").unwrap_or_else(|_| "yarn".to_string());
+        run_command(&front_packer, &["build"], frontend_dir)?;
+        check_sum = compute_file_sha256(&check_sum_file.to_string_lossy())?;
+        if frontend_dist.exists() {
+            copy_recursive(&frontend_dist, &packer_dist, script_src)?;
+        }
+    }
     let lib_ext = if cfg!(target_os = "windows") {
         "dll"
     } else if cfg!(target_os = "linux") {
@@ -137,25 +147,41 @@ fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> 
         eprintln!("Unsupported OS");
         std::process::exit(1);
     };
-    let release_dir = script_src.join("target").join("release");
-    #[cfg(target_os = "windows")]
-    let lib_file = format!("{}.{}", program_name, lib_ext);
-    #[cfg(not(target_os = "windows"))]
-    let lib_file = format!("lib{}.{}", program_name, lib_ext);
-    for entry in fs::read_dir(&release_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_file() && path.ends_with(&lib_file) {
-            fs::copy(&path, dist_dir.join(&lib_file))?;
+    let lib_file = script_src.join("src").join("lib.rs");
+    let temp_file = temp_dir().join("temp.rs");
+    if lib_file.exists() {
+        {
+            let file = File::open(&lib_file)?;
+            let reader = BufReader::new(file);
+            let output_file = File::create(&temp_file)?;
+            let mut writer = io::BufWriter::new(output_file);
+            let mut replaced = false;
+            for line in reader.lines() {
+                let line = line?;
+                if !replaced && line.contains("FRONTEND_SIGNATURE") {
+                    let new_line = line.replacen("FRONTEND_SIGNATURE", check_sum.as_str(), 1);
+                    writeln!(writer, "{}", new_line)?;
+                    replaced = true;
+                } else {
+                    writeln!(writer, "{}", line)?;
+                }
+            }
+            writer.flush()?;
         }
-    }
-    let frontend_dist = frontend_dir.join("dist");
-    let packer_dist = dist_dir.join("frontend");
-    if frontend_dist.exists() {
-        copy_recursive(&frontend_dist, &packer_dist, script_src)?;
-    } else {
-        eprintln!("Frontend dist directory not found");
-        std::process::exit(1);
+        fs::rename(temp_file, &lib_file)?;
+        run_command("cargo", &["build", "--release"], script_src)?;
+        let release_dir = script_src.join("target").join("release");
+        #[cfg(target_os = "windows")]
+        let lib_file = format!("{}.{}", program_name, lib_ext);
+        #[cfg(not(target_os = "windows"))]
+        let lib_file = format!("lib{}.{}", program_name, lib_ext);
+        for entry in fs::read_dir(&release_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() && path.ends_with(&lib_file) {
+                fs::copy(&path, dist_dir.join(&lib_file))?;
+            }
+        }
     }
     let output_dir = script_src.join("output");
     if output_dir.exists() {
@@ -164,6 +190,10 @@ fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> 
     fs::create_dir_all(&output_dir)?;
     let output_file = output_dir.join(format!("{}.zip", program_name));
     create_zip_archive(&dist_dir, &output_file)?;
+    let output_file_sha256 = compute_file_sha256(&output_file.to_string_lossy())?;
+    let output_file_sha256_file = output_dir.join(format!("{}.sha256", program_name));
+    let mut file = File::create(&output_file_sha256_file)?;
+    writeln!(file, "{}", output_file_sha256)?;
     Ok(())
 }
 /// 執行項目: cargo run [extra_args]
@@ -267,4 +297,23 @@ fn create_zip_archive(src_dir: &Path, zip_path: &Path) -> io::Result<()> {
     zip.finish()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     Ok(())
+}
+/// 計算檔案的 SHA256 雜湊值
+/// 參數:
+/// file_path: 檔案路徑
+/// 返回值: io::Result<String>
+fn compute_file_sha256(file_path: &str) -> std::io::Result<String> {
+    let file = File::open(file_path)?;
+    let mut reader = BufReader::new(file);
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 4096];
+    loop {
+        let bytes_read = reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+    let hash_result = hasher.finalize();
+    Ok(format!("{:x}", hash_result))
 }
