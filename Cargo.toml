@@ -1,6 +1,6 @@
 [package]
 name = "chmmod-create"
-version = "0.1.5"
+version = "0.1.7"
 edition = "2021"
 description = "一個用於快速建立 CHM 插件模組的命令列工具"
 license = "Apache-2.0"

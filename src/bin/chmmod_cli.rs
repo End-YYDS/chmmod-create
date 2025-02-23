@@ -123,15 +123,19 @@ fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> 
         fs::remove_dir_all(&dist_dir)?;
     }
     fs::create_dir_all(&dist_dir)?;
-    let frontend_dist = frontend_dir.join("dist");
-    let check_sum_file = frontend_dist.join(format!("{}.js", program_name));
-    let packer_dist = dist_dir.join("frontend");
     let mut check_sum = String::new();
-    if frontend_dist.exists() {
+    if frontend_dir.exists() {
+        let frontend_dist = frontend_dir.join("dist");
+        let check_sum_file = frontend_dist
+            .join("assets")
+            .join(format!("{}.js", program_name));
+        let packer_dist = dist_dir.join("frontend");
         let front_packer = env::var("FRONT_PACKER").unwrap_or_else(|_| "yarn".to_string());
         run_command(&front_packer, &["build"], frontend_dir)?;
         check_sum = compute_file_sha256(&check_sum_file.to_string_lossy())?;
-        copy_recursive(&frontend_dist, &packer_dist, script_src)?;
+        if frontend_dist.exists() {
+            copy_recursive(&frontend_dist, &packer_dist, script_src)?;
+        }
     }
     let lib_ext = if cfg!(target_os = "windows") {
         "dll"
@@ -186,6 +190,10 @@ fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> 
     fs::create_dir_all(&output_dir)?;
     let output_file = output_dir.join(format!("{}.zip", program_name));
     create_zip_archive(&dist_dir, &output_file)?;
+    let output_file_sha256 = compute_file_sha256(&output_file.to_string_lossy())?;
+    let output_file_sha256_file = output_dir.join(format!("{}.sha256", program_name));
+    let mut file = File::create(&output_file_sha256_file)?;
+    writeln!(file, "{}", output_file_sha256)?;
     Ok(())
 }
 /// 執行項目: cargo run [extra_args]

@@ -189,11 +189,10 @@ async fn scaffold_module(
     scope: &str,
     need_frontend: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    create_new_lib(module_name, version, description, scope)?;
+    create_new_lib(module_name, version, description, scope, need_frontend)?;
     create_build_workflow(module_name)
         .map_err(|e| format!("Failed to create build workflow. {}", e))?;
     update_cargo_toml(module_name)?;
-    // create_executable_script(module_name)?;
     create_gitignore(module_name)?;
     if need_frontend {
         create_frontend_pages(module_name, version).await?;
@@ -218,6 +217,7 @@ fn create_new_lib(
     version: &str,
     description: &str,
     scope: &str,
+    need_frontend: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let plugin_name = format!("{}_Plugin", &module_name);
     let status = ProcessCommand::new("cargo")
@@ -233,7 +233,7 @@ fn create_new_lib(
         std::process::exit(1);
     }
     println!("Created new library '{}'", module_name);
-    let lib_content = format!(
+    let has_fortend = format!(
         r#"use actix_web::Responder;
 use plugin_lib::{{declare_plugin, register_plugin}};
 
@@ -265,6 +265,43 @@ declare_plugin!(
 
 register_plugin!({plugin_name});"#
     );
+    let no_fortend = format!(
+        r#"use actix_web::Responder;
+use plugin_lib::{{declare_plugin, register_plugin}};
+
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+struct {plugin_name};
+
+impl {plugin_name} {{
+    pub fn new() -> Self {{
+        Self
+    }}
+
+    async fn test() -> impl Responder {{
+        "{description}"
+    }}
+}}
+
+declare_plugin!(
+    {plugin_name},
+    meta: {{"{plugin_name}","{version}", "{description}","/{scope}",""}},
+    "",
+    functions:{{
+        "/test" => {{
+            method: actix_web::web::get(),
+            handler: {plugin_name}::test
+        }}
+    }}
+);
+
+register_plugin!({plugin_name});"#
+    );
+    let lib_content = if need_frontend {
+        has_fortend
+    } else {
+        no_fortend
+    };
     let lib_path = format!("{}/src/lib.rs", module_name);
     fs::write(&lib_path, lib_content)?;
     println!("Updated lib.rs content for '{}'", module_name);
