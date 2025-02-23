@@ -117,16 +117,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// program_name: 程序名稱
 /// 返回值: io::Result<()>
 fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> io::Result<()> {
-    // 前端管理工具
-    let front_packer = env::var("FRONT_PACKER").unwrap_or_else(|_| "yarn".to_string());
-    // 編譯前端
-    run_command(&front_packer, &["build"], frontend_dir)?;
-    run_command("cargo", &["build", "--release"], script_src)?;
     let dist_dir = script_src.join("dist");
     if dist_dir.exists() {
         fs::remove_dir_all(&dist_dir)?;
     }
     fs::create_dir_all(&dist_dir)?;
+    let frontend_dist = frontend_dir.join("dist");
+    let packer_dist = dist_dir.join("frontend");
+    if frontend_dist.exists() {
+        let front_packer = env::var("FRONT_PACKER").unwrap_or_else(|_| "yarn".to_string());
+        run_command(&front_packer, &["build"], frontend_dir)?;
+        copy_recursive(&frontend_dist, &packer_dist, script_src)?;
+    }
     let lib_ext = if cfg!(target_os = "windows") {
         "dll"
     } else if cfg!(target_os = "linux") {
@@ -137,25 +139,21 @@ fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> 
         eprintln!("Unsupported OS");
         std::process::exit(1);
     };
-    let release_dir = script_src.join("target").join("release");
-    #[cfg(target_os = "windows")]
-    let lib_file = format!("{}.{}", program_name, lib_ext);
-    #[cfg(not(target_os = "windows"))]
-    let lib_file = format!("lib{}.{}", program_name, lib_ext);
-    for entry in fs::read_dir(&release_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_file() && path.ends_with(&lib_file) {
-            fs::copy(&path, dist_dir.join(&lib_file))?;
+    let lib_file = script_src.join("src").join("lib.rs");
+    if lib_file.exists() {
+        run_command("cargo", &["build", "--release"], script_src)?;
+        let release_dir = script_src.join("target").join("release");
+        #[cfg(target_os = "windows")]
+        let lib_file = format!("{}.{}", program_name, lib_ext);
+        #[cfg(not(target_os = "windows"))]
+        let lib_file = format!("lib{}.{}", program_name, lib_ext);
+        for entry in fs::read_dir(&release_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() && path.ends_with(&lib_file) {
+                fs::copy(&path, dist_dir.join(&lib_file))?;
+            }
         }
-    }
-    let frontend_dist = frontend_dir.join("dist");
-    let packer_dist = dist_dir.join("frontend");
-    if frontend_dist.exists() {
-        copy_recursive(&frontend_dist, &packer_dist, script_src)?;
-    } else {
-        eprintln!("Frontend dist directory not found");
-        std::process::exit(1);
     }
     let output_dir = script_src.join("output");
     if output_dir.exists() {
