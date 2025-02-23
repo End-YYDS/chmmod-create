@@ -253,7 +253,7 @@ impl {plugin_name} {{
 
 declare_plugin!(
     {plugin_name},
-    meta: {{"{plugin_name}","{version}", "{description}","/{scope}",""}},
+    meta: {{"{plugin_name}","{version}", "{description}","/{scope}","FRONTEND_SIGNATURE"}},
     "{module_name}.js",
     functions:{{
         "/test" => {{
@@ -301,7 +301,6 @@ fn update_cargo_toml(module_name: &str) -> Result<(), Box<dyn std::error::Error>
             let repo_url = std::env::var("GIT_REPO")
                 .unwrap_or_else(|_| "https://github.com/End-YYDS/plugin_lib".to_string());
             table["git"] = value(repo_url);
-            // table["features"] = value(vec!["plugin_macro"]);
             table
         });
         let actix_web_lib = value("4.9.0");
