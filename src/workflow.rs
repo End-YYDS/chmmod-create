@@ -1,5 +1,5 @@
 //! # 工作流程模組
-//! 
+//!
 //! 這個模組負責生成 GitHub Actions 工作流程配置文件。
 
 use serde::{Deserialize, Serialize};
@@ -74,15 +74,19 @@ struct Step {
 }
 
 /// 建立 GitHub Actions 工作流程配置
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `name` - 專案名稱
-/// 
+/// * `need_frontend` - 是否需要前端
+///
 /// # Returns
-/// 
+///
 /// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
-pub fn create_build_workflow(name: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn create_build_workflow(
+    name: &str,
+    need_frontend: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let project_name = name.to_string();
     let pwf = Path::new(name);
     if !pwf.exists() {
@@ -96,7 +100,7 @@ pub fn create_build_workflow(name: &str) -> Result<(), Box<dyn std::error::Error
 
     let on_trigger = OnTrigger {
         push: PushTrigger {
-            branches: vec!["main".to_string()],
+            branches: vec!["build".to_string()],
             paths: vec![
                 "src/**".to_string(),
                 "Cargo.toml".to_string(),
@@ -137,7 +141,7 @@ pub fn create_build_workflow(name: &str) -> Result<(), Box<dyn std::error::Error
             include: matrix_targets,
         },
     };
-    let steps = vec![
+    let mut steps = vec![
         Step {
             name: "Checkout".to_string(),
             uses: Some("actions/checkout@v4".to_string()),
@@ -201,21 +205,56 @@ fi
 cp "${LIB_OUTPUT}" "./dist/${LIB_RELEASE}"
 ls -l dist/
 "#.to_string()),
-        },
-        Step {
-            name: "Upload Artifact".to_string(),
-            uses: Some("actions/upload-artifact@v4".to_string()),
+        }
+    ];
+    if need_frontend {
+        steps.push(Step {
+            name: "Setup Node.js".to_string(),
+            uses: Some("actions/setup-node@v4".to_string()),
             with: {
                 let mut with = HashMap::new();
-                with.insert("name".to_string(), format!(r#"{}-${{{{ matrix.name }}}}-library"#,name));
-                with.insert("path".to_string(), "dist/".to_string());
-                with.insert("retention-days".to_string(), "30".to_string());
+                with.insert("node-version".to_string(), "*".to_string());
                 Some(with)
             },
             run: None,
             shell: None,
+        });
+        steps.push(Step {
+            name: "Install Yarn".to_string(),
+            uses: None,
+            with: None,
+            run: Some("npm install -g yarn".to_string()),
+            shell: None,
+        });
+        steps.push(Step {
+            name: "Build Frontend".to_string(),
+            uses: None,
+            with: None,
+            run: Some("cd frontend && yarn install --frozen-lockfile && yarn build".to_string()),
+            shell: None,
+        });
+        steps.push(Step {
+            name: "Copy Frontend Build to Dist Directory".to_string(),
+            uses: None,
+            with: None,
+            run: Some("cp -r frontend/dist/* dist/".to_string()),
+            shell: None,
+        });
+    }
+    
+    steps.push(Step {
+        name: "Upload Artifact".to_string(),
+        uses: Some("actions/upload-artifact@v4".to_string()),
+        with: {
+            let mut with = HashMap::new();
+            with.insert("name".to_string(), format!(r#"{}-${{{{ matrix.name }}}}-library"#, name));
+            with.insert("path".to_string(), "dist/".to_string());
+            with.insert("retention-days".to_string(), "30".to_string());
+            Some(with)
         },
-    ];
+        run: None,
+        shell: None,
+    });
 
     let build_job = BuildJob {
         condition: Some("!contains(github.event.head_commit.message, '[skip ci]')".to_string()),

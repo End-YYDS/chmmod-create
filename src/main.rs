@@ -190,7 +190,7 @@ async fn scaffold_module(
     need_frontend: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     create_new_lib(module_name, version, description, scope, need_frontend)?;
-    create_build_workflow(module_name)
+    create_build_workflow(module_name, need_frontend)
         .map_err(|e| format!("Failed to create build workflow. {}", e))?;
     update_cargo_toml(module_name)?;
     create_gitignore(module_name)?;
