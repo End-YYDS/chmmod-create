@@ -230,14 +230,16 @@ ls -l dist/
             name: "Build Frontend".to_string(),
             uses: None,
             with: None,
-            run: Some("cd frontend && yarn install --frozen-lockfile && yarn build".to_string()),
+            run: Some(
+                "cd src/frontend && yarn install --frozen-lockfile && yarn build".to_string(),
+            ),
             shell: None,
         });
         steps.push(Step {
             name: "Copy Frontend Build to Dist Directory".to_string(),
             uses: None,
             with: None,
-            run: Some("cp -r frontend/dist/* dist/".to_string()),
+            run: Some("cp -r src/frontend/frontend dist/".to_string()),
             shell: None,
         });
     }
