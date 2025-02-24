@@ -100,7 +100,7 @@ pub fn create_build_workflow(
 
     let on_trigger = OnTrigger {
         push: PushTrigger {
-            branches: vec!["build".to_string()],
+            branches: vec!["main".to_string()],
             paths: vec![
                 "src/**".to_string(),
                 "Cargo.toml".to_string(),
@@ -241,13 +241,16 @@ ls -l dist/
             shell: None,
         });
     }
-    
+
     steps.push(Step {
         name: "Upload Artifact".to_string(),
         uses: Some("actions/upload-artifact@v4".to_string()),
         with: {
             let mut with = HashMap::new();
-            with.insert("name".to_string(), format!(r#"{}-${{{{ matrix.name }}}}-library"#, name));
+            with.insert(
+                "name".to_string(),
+                format!(r#"{}-${{{{ matrix.name }}}}-library"#, name),
+            );
             with.insert("path".to_string(), "dist/".to_string());
             with.insert("retention-days".to_string(), "30".to_string());
             Some(with)
@@ -257,7 +260,7 @@ ls -l dist/
     });
 
     let build_job = BuildJob {
-        condition: Some("!contains(github.event.head_commit.message, '[skip ci]')".to_string()),
+        condition: Some("contains(github.event.head_commit.message, '[build]')".to_string()),
         runs_on: Some("${{ matrix.runner }}".to_string()),
         strategy,
         steps,
@@ -278,8 +281,8 @@ ls -l dist/
         .replace("'${{", "${{")
         .replace("}}'", "}}")
         .replace(
-            "'!contains(github.event.head_commit.message, '[skip ci]')'",
-            "!contains(github.event.head_commit.message, '[skip ci]')",
+            "'contains(github.event.head_commit.message, '[build]')'",
+            "contains(github.event.head_commit.message, '[build]')",
         )
         .replace("'30'", "30");
 
