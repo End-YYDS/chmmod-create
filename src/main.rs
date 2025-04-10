@@ -20,7 +20,6 @@
 //! chmmod-create --help
 //! ```
 
-mod workflow;
 use clap::{crate_authors, crate_version, Arg, Command};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -29,7 +28,6 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::process::Command as ProcessCommand;
 use toml_edit::{value, Array, DocumentMut, Item};
-use workflow::create_build_workflow;
 // const EXECUTE_FILE: &str = "chm_cli";
 const PLUGIN_FRONTEND_DIR: &str = "src";
 /// 主程式入口點
@@ -189,207 +187,11 @@ async fn scaffold_module(
     scope: &str,
     need_frontend: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    create_new_lib(module_name, version, description, scope, need_frontend)?;
-    create_build_workflow(module_name, need_frontend)
-        .map_err(|e| format!("Failed to create build workflow. {}", e))?;
-    update_cargo_toml(module_name)?;
     create_gitignore(module_name)?;
-    if need_frontend {
-        create_frontend_pages(module_name, version).await?;
-    }
+    create_frontend_pages(module_name, version).await?;
     Ok(())
 }
 
-/// 使用 cargo new 建立新的函式庫
-///
-/// # Arguments
-///
-/// * `module_name` - 模組名稱
-/// * `version` - 模組版本
-/// * `description` - 模組描述
-/// * `scope` - 模組作用域
-///
-/// # Returns
-/// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
-///
-fn create_new_lib(
-    module_name: &str,
-    version: &str,
-    description: &str,
-    scope: &str,
-    need_frontend: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let plugin_name = format!("{}_Plugin", &module_name);
-    let status = ProcessCommand::new("cargo")
-        .arg("new")
-        .arg("--lib")
-        .arg("-q")
-        .arg(module_name)
-        .status()
-        .expect("Failed to execute cargo new");
-
-    if !status.success() {
-        eprintln!("Failed to create new library with cargo");
-        std::process::exit(1);
-    }
-    println!("Created new library '{}'", module_name);
-    let has_fortend = format!(
-        r#"use actix_web::Responder;
-use plugin_lib::{{declare_plugin, register_plugin}};
-
-#[derive(Debug)]
-#[allow(non_camel_case_types)]
-struct {plugin_name};
-
-impl {plugin_name} {{
-    pub fn new() -> Self {{
-        Self
-    }}
-
-    async fn test() -> impl Responder {{
-        "{description}"
-    }}
-}}
-
-declare_plugin!(
-    {plugin_name},
-    meta: {{"{plugin_name}","{version}", "{description}","/{scope}","FRONTEND_SIGNATURE"}},
-    "{module_name}.js",
-    functions:{{
-        "/test" => {{
-            method: actix_web::web::get(),
-            handler: {plugin_name}::test
-        }}
-    }}
-);
-
-register_plugin!({plugin_name});"#
-    );
-    let no_fortend = format!(
-        r#"use actix_web::Responder;
-use plugin_lib::{{declare_plugin, register_plugin}};
-
-#[derive(Debug)]
-#[allow(non_camel_case_types)]
-struct {plugin_name};
-
-impl {plugin_name} {{
-    pub fn new() -> Self {{
-        Self
-    }}
-
-    async fn test() -> impl Responder {{
-        "{description}"
-    }}
-}}
-
-declare_plugin!(
-    {plugin_name},
-    meta: {{"{plugin_name}","{version}", "{description}","/{scope}",""}},
-    "",
-    functions:{{
-        "/test" => {{
-            method: actix_web::web::get(),
-            handler: {plugin_name}::test
-        }}
-    }}
-);
-
-register_plugin!({plugin_name});"#
-    );
-    let lib_content = if need_frontend {
-        has_fortend
-    } else {
-        no_fortend
-    };
-    let lib_path = format!("{}/src/lib.rs", module_name);
-    fs::write(&lib_path, lib_content)?;
-    println!("Updated lib.rs content for '{}'", module_name);
-    Ok(())
-}
-
-/// 更新 Cargo.toml 配置
-///
-/// # Arguments
-///
-/// * `module_name` - 模組名稱
-///
-/// # Returns
-/// * `Result<(), Box<dyn std::error::Error>>` - 成功返回 Ok(()), 失敗返回錯誤
-///
-fn update_cargo_toml(module_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let cargo_toml_path = format!("{}/Cargo.toml", module_name);
-
-    let mut cargo_content = String::new();
-    {
-        let mut file = OpenOptions::new()
-            .read(true)
-            .open(&cargo_toml_path)
-            .expect("Failed to open Cargo.toml");
-        file.read_to_string(&mut cargo_content)
-            .expect("Failed to read Cargo.toml");
-    }
-
-    let mut doc = cargo_content.parse::<DocumentMut>()?;
-
-    if let Some(dependencies) = doc.get_mut("dependencies") {
-        let plugin_lib = Item::Table({
-            let mut table = toml_edit::Table::new();
-            let repo_url = std::env::var("GIT_REPO")
-                .unwrap_or_else(|_| "https://github.com/End-YYDS/plugin_lib".to_string());
-            table["git"] = value(repo_url);
-            table
-        });
-        let actix_web_lib = value("4.9.0");
-        let dependencies_table = dependencies.as_table_mut().unwrap();
-        dependencies_table.insert("plugin_lib", plugin_lib);
-        dependencies_table.insert("actix-web", actix_web_lib);
-    }
-
-    let lib_section = doc
-        .entry("lib")
-        .or_insert(Item::Table(toml_edit::Table::new()));
-    if let Some(lib_table) = lib_section.as_table_mut() {
-        let mut crate_types = Array::new();
-        crate_types.push("dylib");
-        lib_table["crate-type"] = value(crate_types);
-    }
-    fs::write(&cargo_toml_path, doc.to_string())?;
-    println!("Updated Cargo.toml for module '{}'", module_name);
-    Ok(())
-}
-/// 創建可執行腳本
-/// # Arguments
-/// * `module_name` - 模組名稱
-///
-/// # Returns
-/// * `std::io::Result<()>` - 成功返回 Ok(()), 失敗返回錯誤
-///
-// fn create_executable_script(module_name: &str) -> std::io::Result<()> {
-//     let execute_file = format!(
-//         "{}/{}",
-//         module_name,
-//         std::env::var("EXECUTE_FILE").unwrap_or(EXECUTE_FILE.to_string())
-//     );
-//     let path = Path::new(&execute_file);
-//     #[cfg(target_os = "linux")]
-//     {
-//         let content = include_str!("../chm_cli.sh");
-//         let mut file = File::create(path)?;
-//         file.write_all(content.as_bytes())?;
-//         let mut perms = file.metadata()?.permissions();
-//         perms.set_mode(0o755);
-//         file.set_permissions(perms)?;
-//     }
-//     #[cfg(target_os = "windows")]
-//     {
-//         let content = include_str!("../chm_cli.bat");
-//         let mut file = File::create(path)?;
-//         file.write_all(content.as_bytes())?;
-//     }
-//     dbg!(path);
-//     Ok(())
-// }
 /// 創建 .gitignore 文件
 /// # Arguments
 /// * `module_name` - 模組名稱
@@ -425,21 +227,6 @@ dist-ssr
     Ok(())
 }
 
-/// 創建 .env 文件
-/// # Arguments
-/// * `module_name` - 模組名稱
-/// # Returns
-/// * `std::io::Result<()>` - 成功返回 Ok(()), 失敗返回錯誤
-///
-fn create_env(module_name: &str) -> std::io::Result<()> {
-    let gitignore_file = format!("{}/src/frontend/.env", module_name);
-    let path = Path::new(&gitignore_file);
-
-    let content = format!("VITE_LIB_NAME={}", module_name);
-    let mut file = File::create(path)?;
-    file.write_all(content.as_bytes())?;
-    Ok(())
-}
 /// 創建前端頁面
 /// # Arguments
 /// * `module_name` - 模組名稱
@@ -465,7 +252,6 @@ async fn create_frontend_pages(
     download_and_extract(&owner, &repo, &branch, path).await?;
     println!("Created frontend pages for '{}'", module_name);
     println!("Create env file for '{}'", module_name);
-    create_env(module_name)?;
     println!("Updated package.json for '{}'", module_name);
     let package_json = format!("{}/frontend/package.json", frontend_dir);
     let content = fs::read_to_string(&package_json)?;
