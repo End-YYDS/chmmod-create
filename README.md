@@ -69,3 +69,5 @@ chmmod-cli -h
 ```bash
 cargo install chmmod-create
 ```
+
+INIT
