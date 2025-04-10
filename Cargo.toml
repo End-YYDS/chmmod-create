@@ -1,6 +1,6 @@
 [package]
 name = "chmmod-create"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 description = "一個用於快速建立 CHM 插件模組的命令列工具"
 license = "Apache-2.0"
@@ -14,19 +14,15 @@ categories = ["command-line-utilities", "development-tools"]
 [[bin]]
 name = "chmmod-create"
 path = "src/main.rs"
-[[bin]]
-name = "chmmod-cli"
-path = "src/bin/chmmod_cli.rs"
 
 [dependencies]
 clap = { version = "4.5.23", features = ["derive", "cargo"] }
 dotenv = "0.15.0"
 reqwest = "0.12.12"
 serde = { version = "1.0.216", features = ["derive"] }
-serde_json = "1.0.138"
-serde_yml = "0.0.12"
+serde_json = { version = "1.0.140", features = ["preserve_order"] }
 sha2 = "0.10.8"
+tempfile = "3.19.1"
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "sync"] }
-toml_edit = "0.22.22"
 walkdir = "2.5.0"
-zip = "2.2.2"
+zip = "2.6.1"

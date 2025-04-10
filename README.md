@@ -3,14 +3,7 @@
 這是一個用於快速建立 CHM 插件模組的命令列工具。它可以自動生成必要的專案結構和配置文件。
 
 ## 功能特點
-
-- 自動建立新的 Rust 函式庫專案
-- 配置 Cargo.toml 以支援動態函式庫編譯
-- 自動整合 plugin_core 依賴
-- 生成 GitHub Actions 工作流程，支援多平台編譯：
-  - Windows (x64)
-  - Linux (x64)
-  - macOS (x64/ARM64)
+從Github上下載插件專案檔，並初始化一些功能
 
 ## 安裝
 ### 1. 下載原代碼並安裝
@@ -33,31 +26,13 @@ chmmod-create 執行之後會提示輸入模組名稱
 ```
 
 ## 生成的專案結構
-```
-example/
-|---- .github/
-    |---- workflows/
-        |---- build.yml # Github Actions 工作流程配置
-|---- src/
-    |---- frontend #前端代碼
-    |---- lib.rs #模組主程式碼
-|---- Cargo.toml #專案配置文件
-```
+詳見: `https://github.com/End-YYDS/React_Project_init/tree/Plugin-FrameWork`
 ## 專案執行方式
 ### 使用專門提供的工具`chmmod-cli`來執行或其他操作
 ```bash
 chmmod-cli -h
 ```
 ### 進入各個目錄下去執行各種指令：`yarn`、`cargo`
-## 自動化建置
-專案包含 GitHub Actions 工作流程，當推送到 main 分支時會自動觸發建置：
-- 支援多平台交叉編譯
-- 自動產生各平台的動態函式庫檔案
-- 建置產物會上傳為 GitHub Actions 成品
-## 注意事項
-- 確保模組名稱符合 Rust 命名規範（小寫字母、數字和底線）
-- 需要有 Rust 工具鏈和 Cargo 套件管理器
-- 如果要跳過 CI 建置，在 commit 訊息中加入 `[skip ci]`
 
 ## 發布資訊
 
@@ -69,5 +44,3 @@ chmmod-cli -h
 ```bash
 cargo install chmmod-create
 ```
-
-INIT
