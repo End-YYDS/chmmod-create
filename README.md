@@ -28,11 +28,9 @@ chmmod-create 執行之後會提示輸入模組名稱
 ## 生成的專案結構
 詳見: `https://github.com/End-YYDS/React_Project_init/tree/Plugin-FrameWork`
 ## 專案執行方式
-### 使用專門提供的工具`chmmod-cli`來執行或其他操作
-```bash
-chmmod-cli -h
-```
-### 進入各個目錄下去執行各種指令：`yarn`、`cargo`
+
+### 進入模組目錄下去執行指令：
+- `pnpm install`
 
 ## 發布資訊
 
