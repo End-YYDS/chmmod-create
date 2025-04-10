@@ -205,12 +205,10 @@ async fn create_frontend_pages(
         map["description"] = Value::String(module_description.to_string());
         map["version"] = Value::String(module_version.to_string());
         if let Some(Value::Object(ref mut scripts)) = map.get_mut("scripts") {
-            if let Some(Value::String(ref mut postbuild)) = scripts.get_mut("postbuild") {
-                *postbuild = postbuild.replace(
-                    "../out/react-project-init.zip",
-                    &format!("../out/{}.zip", module_name),
-                );
-            }
+            scripts.insert(
+                "postbuild".to_string(),
+                Value::String("node scripts/postbuild.js".to_string()),
+            );
         }
     }
     let f = File::create(&package_json)?;
