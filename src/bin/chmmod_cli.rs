@@ -125,7 +125,7 @@ fn build_release(script_src: &Path, frontend_dir: &Path, program_name: &str) -> 
     fs::create_dir_all(&dist_dir)?;
     let mut check_sum = String::new();
     if frontend_dir.exists() {
-        let frontend_dist = frontend_dir.join("dist");
+        let frontend_dist = frontend_dir.join("frontend");
         let check_sum_file = frontend_dist
             .join("assets")
             .join(format!("{}.js", program_name));

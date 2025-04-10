@@ -129,13 +129,13 @@ async fn main() {
         .get_one::<String>("scope")
         .cloned()
         .unwrap_or_else(|| {
-            println!("Please enter the plugin scope (default: public):");
+            println!("Please enter the plugin scope (default: project name):");
             let mut input = String::new();
             match std::io::stdin().read_line(&mut input) {
                 Ok(_) => {
                     let scope = input.trim();
                     if scope.is_empty() {
-                        "public".to_string()
+                        module_name.to_string()
                     } else {
                         scope.to_string()
                     }
