@@ -72,7 +72,14 @@ async fn main() {
             println!("Please enter a plugin description:");
             let mut input = String::new();
             match std::io::stdin().read_line(&mut input) {
-                Ok(_) => input.trim().to_string(),
+                Ok(_) => {
+                    let des = input.trim().to_string();
+                    if des.is_empty() {
+                        module_name.to_string()
+                    } else {
+                        des.to_string()
+                    }
+                }
                 Err(_) => {
                     eprintln!("Failed to read description, exiting...");
                     std::process::exit(1);
