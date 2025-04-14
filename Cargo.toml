@@ -1,6 +1,6 @@
 [package]
 name = "chmmod-create"
-version = "0.1.9"
+version = "0.2.0"
 edition = "2021"
 description = "一個用於快速建立 CHM 插件模組的命令列工具"
 license = "Apache-2.0"
@@ -23,3 +23,6 @@ serde_json = { version = "1.0.140", features = ["preserve_order"] }
 tempfile = "3.19.1"
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"] }
 zip = "2.6.1"
+
+[build-dependencies]
+winres = "0.1.12"
